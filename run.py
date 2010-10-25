@@ -1,1 +1,1 @@
-# test!
+from HMM import *
