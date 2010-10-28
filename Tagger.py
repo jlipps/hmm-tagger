@@ -69,9 +69,9 @@ class Tagger:
         avg_wrong = sum(wrongs) / len(wrongs)
         
         # output the results of our testing
-        print "Total tests run: %d" % len(rights)
-        print "Average correct tags: %d (%0.2f%%)" % (avg_right, sum(rights) / sum(totals) * 100)
-        print "Average incorrect tags: %d (%0.2f%%)" % (avg_wrong, sum(wrongs) / sum(totals) * 100)
+        print "Total tests run: %d" % len(totals)
+        print "Average correct tags: %0.2f%%" % (sum(rights) / sum(totals) * 100)
+        print "Average incorrect tags: %0.2f%%" % (sum(wrongs) / sum(totals) * 100)
         print
             
     def train(self, sents):
