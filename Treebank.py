@@ -1,17 +1,20 @@
 from __future__ import division # use float division
 import nltk # import the Natural Language Toolkit for parsing the Penn Treebank
 from Helper import msg # for logging
+from nltk.corpus.reader import TaggedCorpusReader
 
 class Treebank:
     "A class for parsing a tagged corpus for training and testing"
     
-    def __init__(self):
+    def __init__(self, corpus_path, corpus_files):
         """
         Construct a Treebank object
         """
 
         msg("Importing treebank...")
-        from nltk.corpus import treebank # load corpus from NLTK
+        treebank = TaggedCorpusReader(corpus_path, corpus_files)
+        #from nltk.corpus import treebank
+        #treebank = brown
         
         # get all sentences from corpus in a tagged format
         self.tagged_sents = treebank.tagged_sents()
@@ -71,6 +74,11 @@ class Treebank:
         msg("done\n")
         
         return tags
+        
+    def print_sents(self):
+        for sent in self.tagged_sents:
+            print sent
+            raw_input()
         
     
     ######### `PRIVATE' FUNCTIONS #########
