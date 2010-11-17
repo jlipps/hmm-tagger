@@ -18,6 +18,12 @@ class Tagger:
     # a fake START tag to add to the beginning of sentences to help with tagging
     start_tag = '^'
     
+    # number of times for a POS tagging mistake to occur in order to show it to user
+    mistake_threshold = 50
+    
+    # x-fold cross-validation
+    test_cycles = 10
+    
     def __init__(self, corpus_path, corpus_files):
         """
         Construct a Tagger object
@@ -26,12 +32,23 @@ class Tagger:
         :param corpus_files: list of corpus files
         """
         
-        self.tb = Treebank(corpus_path, corpus_files) # object for working with corpus data
-        self.pos_tags = False # will contain a list of tags in training corpus
-        self.hmm = False # object for running the Hidden Markov Model for tagging
+        # object for working with corpus data
+        self.tb = Treebank(corpus_path, corpus_files) 
+        
+        # will contain a list of tags in training corpus
+        self.pos_tags = False 
+        
+        # will be object for running the Hidden Markov Model for tagging
+        self.hmm = False
+        
+        # use PennTags
         self.tags = PennTags
-        self.words_given_pos = False # conditional frequency distribution for P(Wi|Cj)
-        self.pos2_given_pos1 = False # conditional frequency distribution for P(Ci+1|Ci)
+        
+        # will hold conditional frequency distribution for P(Wi|Ck)
+        self.words_given_pos = False
+        
+        # will hold conditional frequency distribution for P(Ci+1|Ci) 
+        self.pos2_given_pos1 = False
     
     
     ######### `PUBLIC' FUNCTIONS #########
@@ -44,8 +61,9 @@ class Tagger:
         """
         
         total_time_start = time.time() # keep track of time
-        train_pct = 90 # percentage of the corpus to train the tagger on
-        test_pct = 10 # percentage of the corpus to test the tagger on
+        pct_step = int(100 / Tagger.test_cycles) # cycle steps in pct
+        test_pct = pct_step # percentage of the corpus to test the tagger on
+        train_pct = 100 - test_pct # percentage of the corpus to train the tagger on
         rights = [] # array to hold number of correctly-tagged words for each test
         wrongs = [] # array to hold number of incorrectly-tagged words for each test
         totals = [] # array to hold number of total words for each test
@@ -53,8 +71,9 @@ class Tagger:
         sep = ''.join(["-" for i in range(50)]) + "\n" # logging separator
         
         # loop from 0-90 (step size 10)
-        for start_train_pct in [x*10 for x in range(10)]:
-            msg("%sSTARTING TEST CYCLE %d\n%s" % (sep, (start_train_pct/10)+1, sep))
+        for start_train_pct in [x*pct_step for x in range(Tagger.test_cycles)]:
+            msg("%sSTARTING TEST CYCLE %d\n%s" % (sep, (start_train_pct/pct_step)+1,\
+                sep))
             
             # find the percent point to start collecting test sentences
             # may be > 100, so circle round
@@ -108,20 +127,26 @@ class Tagger:
         sents = self._adjust_pos(sents)
         msg("done\n")
         
-        # create a conditional frequency distribution (from the NLTK) that stores
-        # observed probabilities that a given word has a certain POS
+        # create 2 conditional frequency distributions (from the NLTK) that store
+        # observed probabilities that a given word has a certain POS, one for
+        # lowercase-normalized words and one for words as they appear in the text
         msg("Training (Wi|Ck)...")
+        
         # create a CFD for words normalized to lowercase
-        self.words_given_pos = ConditionalFreqDist((wp[1], wp[0].lower()) for sent in sents for wp in sent)
+        self.words_given_pos = ConditionalFreqDist((wp[1], wp[0].lower()) for \
+            sent in sents for wp in sent)
+            
         # create a CFD for words left in their original capitalization
-        self.words_given_pos_upper = ConditionalFreqDist((wp[1], wp[0]) for sent in sents for wp in sent)
+        self.words_given_pos_upper = ConditionalFreqDist((wp[1], wp[0]) for \
+            sent in sents for wp in sent)
         msg("done\n")
         
         # create another CFD that stores probabilities that stores observed
         # probabilities that one POS follows another POS
         msg("Training (Ci+1|Ci)...")
-        self.pos2_given_pos1 = ConditionalFreqDist((sent[i-1][1], sent[i][1]) for sent in sents for i in range(1,len(sent)))
-        #self.pos2_given_pos1 = self._build_freq([(sent[i-1][1], sent[i][1]) for sent in sents for i in range(1,len(sent))])
+        self.pos2_given_pos1 = ConditionalFreqDist((sent[i-1][1], sent[i][1]) for \
+            sent in sents for i in range(1,len(sent)))
+
         msg("done\n")
         
     def test(self, sent_set):
@@ -154,7 +179,8 @@ class Tagger:
         
         # ensure our sentence sets have the same length
         if len(hmm_tagged_sents) != len(gold_tagged_sents):
-            raise Exception("HMM-tagged sentence set did not match gold standard sentence set!")
+            raise Exception("HMM-tagged sentence set did not match gold \
+                standard sentence set!")
         
         right = 0 # initialize counter of correct tags
         wrong = 0 # initialize counter of incorrect tags
@@ -165,7 +191,8 @@ class Tagger:
             
             # ensure our sentences have the same length
             if len(hmm_tagged_sents[i]) != len(gold_tagged_sents[i]):
-                raise Exception("HMM-tagged sentence did not match gold standard sentence!")
+                raise Exception("HMM-tagged sentence did not match gold \
+                    standard sentence!")
                 
             # loop through words in sentence
             for j in range(len(gold_tagged_sents[i])):
@@ -174,13 +201,15 @@ class Tagger:
                 
                 # ensure the words are the same between the sets
                 if gold_tagged_word[0] != hmm_tagged_word[0]:
-                    raise Exception("HMM-tagged word did not match gold standard word!")
+                    raise Exception("HMM-tagged word did not match gold \
+                        standard word!")
 
                 # increment counters based on tag correctness
                 if gold_tagged_word[1] == hmm_tagged_word[1]:
                     right += 1
                 else:
-                    missed.append((hmm_tagged_word, gold_tagged_word, hmm_tagged_sents[i], gold_tagged_sents[i]))
+                    missed.append((hmm_tagged_word, gold_tagged_word, \
+                        hmm_tagged_sents[i], gold_tagged_sents[i]))
                     wrong += 1
             # end words loop
         # end sentences loop
@@ -221,9 +250,9 @@ class Tagger:
                     mistakes[count] = []
                 mistakes[count].append((hmm_tag, g_tag))
                 
-        # get a list of all mistake types that occurred over 50 times, worst first
-        mistake_counts = set([count for (count, mistake_set) in mistakes.iteritems() \
-            if count > 50])
+        # get a list of all mistake types that occurred over a threshold, worst first
+        mistake_counts = set([count for (count, mistake_set) in \
+            mistakes.iteritems() if count > Tagger.mistake_threshold])
         mistake_counts = reversed(sorted(mistake_counts))
         
         # now create a list of mistake types to show the user, i.e., loop 
@@ -233,30 +262,42 @@ class Tagger:
             mistake_set = mistakes[count]
             for mistake_tuple in mistake_set:
                 mistakes_to_halt.append(mistake_tuple)
-                msg("%d\t%s\twas really\t%s\n" % (count, mistake_tuple[0], mistake_tuple[1]))
+                msg("%d\t%s\twas really\t%s\n" % (count, mistake_tuple[0], \
+                    mistake_tuple[1]))
         msg("\n")
+        
+        # create separators used when outputting missed word contexts
+        sep_big = "---------------------------------------------------\n"
+        sep_small = "\n-----------------------------------------\n"
         
         # loop through individual mistakes and, if they match the kind of error
         # we want to halt for, show the user the mistake as well as the sentence
         # context for both the gold-standard sentence and the hmm-tagged sentence
         response = None
-        for missed_set in mistakes_to_halt:
+        for missed_set in missed:
             if response not in ['q','Q']:
-                (hmm_tagged_word, gold_tagged_word, hmm_tagged_sent, gold_tagged_sent) = missed_set
+                (hmm_tagged_word, gold_tagged_word, hmm_tagged_sent, \
+                    gold_tagged_sent) = missed_set
                 should_halt = False
                 # determine whether the current mistake matches a mistake type
                 # we want to halt for
                 for pair in mistakes_to_halt:
-                    if hmm_tagged_word[1] == pair[0] and gold_tagged_word[1] == pair[1]:
+                    if hmm_tagged_word[1] == pair[0] and \
+                        gold_tagged_word[1] == pair[1]:
                         should_halt = True
                 if should_halt:
-                    msg("---------------------------------------------------\nTagged '%s' with %s when it should have been %s.\n-----------------------------------------\n" % (hmm_tagged_word[0], hmm_tagged_word[1], gold_tagged_word[1]))
-                    msg("Gold: " + (' '.join([(w[0] + "/" + w[1]) for w in gold_tagged_sent])))
-                    msg("\n-----------------------------------------\n")
-                    msg("Mine: " + (' '.join([(w[0] + "/" + w[1]) for w in hmm_tagged_sent])))
+                    msg("%sTagged '%s' with %s when it should have been %s.%s" %\
+                    (sep_big, hmm_tagged_word[0], hmm_tagged_word[1],\
+                        gold_tagged_word[1], sep_small))
+                    
+                    msg("Gold: " + (' '.join([(w[0] + "/" + w[1]) for w in \
+                        gold_tagged_sent])))
+                    msg(sep_small)
+                    msg("Mine: " + (' '.join([(w[0] + "/" + w[1]) for w in \
+                        hmm_tagged_sent])))
                     
                     # get user input to decide whether to keep going
-                    response = raw_input("\n\nEnter to continue, Q to quit:")
+                    response = raw_input("\n\nEnter to continue, Q to quit: ")
 
     ######### `PRIVATE' FUNCTIONS #########
     

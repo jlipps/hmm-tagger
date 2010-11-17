@@ -6,6 +6,8 @@ import re # for finding word suffixes, etc...
 class Guesser:
     "A class for guessing the part of speech of a word"
     
+    ######### CLASS VARIABLES #########
+    
     # hard-code lists of certain parts of speech to help with guessing
     
     det_list = ['a', 'both', 'all', 'no', 'this', 'that', 'some', 'an', 'these', 
@@ -49,6 +51,8 @@ class Guesser:
         for pos, wordlist in self.punct_list.iteritems():
             for word in wordlist:
                 self.inverted_punct_list[word] = pos
+                
+    ######### `PUBLIC' FUNCTIONS #########
         
     def guess(self, word, scores_without_word_prob):
         """
@@ -59,7 +63,7 @@ class Guesser:
             a given POS based on the previous POS but not based on the word itself
         """
         
-        t = self.tags
+        t = self.tags # for convenience
         
         # create a list of features for a word, for now stored in simple variables
         is_upper = re.search(r'[A-Z]', word[0]) is not None
@@ -162,7 +166,7 @@ class Guesser:
         :param pos_tags: list of POS tags for a sentence
         """
         
-        t = self.tags
+        t = self.tags # for convenience
         
         # loop through POS tags
         for j in range(len(pos_tags)):
@@ -214,6 +218,9 @@ class Guesser:
                 
         return pos_tags
         
+        
+    ######### `PRIVATE' FUNCTIONS #########
+        
     def _best_pos(self, word, pos_list):
         """
         Return the most probable POS for a word given a POS list.
@@ -249,7 +256,7 @@ class Guesser:
         :param def_tag: tag to return if there is no best guess
         """
         
-        t = self.tags
+        t = self.tags # for convenience
         
         # gather additional features about the word
         ends_in_es = word[-2:] == 'es'
@@ -304,7 +311,7 @@ class Guesser:
         :param def_tag: tag to return if there is no best guess
         """
         
-        t = self.tags
+        t = self.tags # for convenience
         
         guess_tag = def_tag # set guess tag to return by default
         

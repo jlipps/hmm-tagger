@@ -2,6 +2,8 @@
 
 class PennTags:
     "A class to hold information about tags in the Penn Treebank"
+    
+    ######### CLASS VARIABLES #########
 
     proper_noun = 'NNP'
     common_noun = 'NN'

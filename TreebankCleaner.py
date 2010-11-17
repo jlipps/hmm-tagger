@@ -1,6 +1,7 @@
 ######### TreebankCleaner.py #########
 
 import re # for regular expressions
+from Helper import msg # for messaging
 
 class TreebankCleaner:
     "A class for cleaning treebank text"
@@ -15,6 +16,8 @@ class TreebankCleaner:
         
         self.corpus_path = corpus_path
         self.corpus_files = corpus_files
+    
+    ######### `PUBLIC' FUNCTIONS #########
         
     def clean(self):
         """
@@ -23,6 +26,8 @@ class TreebankCleaner:
         
         # loop through files
         for corpus_file in self.corpus_files:
+            
+            msg("Cleaning %s..." % corpus_file)
             
             # get the file in a string
             f = open(self.corpus_path + corpus_file, 'r')
@@ -47,3 +52,5 @@ class TreebankCleaner:
             new_file = corpus_file + '_cleaned'
             f = open(self.corpus_path + new_file, 'w')
             f.write(data)
+            
+            msg("done!\n")

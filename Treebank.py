@@ -11,18 +11,22 @@ class Treebank:
     def __init__(self, corpus_path, corpus_files):
         """
         Construct a Treebank object
+        
+        :param corpus_path: path to corpus files
+        :param corpus_files: list of filenames for corpus text
         """
 
         msg("Importing treebank...")
+        
+        # get a corpus reader object for our corpus using NLTK
         treebank = TaggedCorpusReader(corpus_path, corpus_files)
-        #from nltk.corpus import treebank
-        #treebank = brown
         
         # get all sentences from corpus in a tagged format
         self.tagged_sents = treebank.tagged_sents()
         
         # get all sentences from corpus in an untagged format
         self.sents = treebank.sents()
+        
         msg("done!\n")
         
     ######### `PUBLIC' FUNCTIONS #########
@@ -34,6 +38,7 @@ class Treebank:
         :param train_pct: what pct of the corpus to retrieve
         :param start_train_pct: where in the corpus to begin retrieval
         """
+        
         msg("Getting training sentences...")
         sents = self._sents_by_pct(train_pct, start_train_pct)
         msg("done: %d%% starting at %d%%\n" % (train_pct, start_train_pct))
@@ -48,6 +53,8 @@ class Treebank:
         :param start_test_pct: where in the corpus to begin retrieval
         """
         
+        # when we retrieve testing sentences, we want to get tagged and untagged
+        # versions of them so we can evaluate accuracy
         msg("Getting testing sentences...")
         untagged_sents = self._sents_by_pct(test_pct, start_test_pct, tagged=False)
         tagged_sents = self._sents_by_pct(test_pct, start_test_pct, tagged=True)
@@ -77,11 +84,6 @@ class Treebank:
         
         return tags
         
-    def print_sents(self):
-        for sent in self.tagged_sents:
-            print sent
-            raw_input()
-        
     
     ######### `PRIVATE' FUNCTIONS #########
     
@@ -104,7 +106,7 @@ class Treebank:
         last_index = total_sents - 1
         end_pct = pct + start_pct
         
-        # if our end_pct is greater than 100, go around the corner
+        # if our end_pct is greater than 100, go around the 0% corner
         if end_pct > 100:
             end_pct -= 100
         
@@ -112,13 +114,11 @@ class Treebank:
         first_sent_index = int(total_sents * start_pct / 100)
         
         # get the index of the last sentence we want:
-        # subtract 1 to make sure testing/training sentence lists
-        # do not overlap
+        # subtract 1 to make sure testing/training sentence lists do not overlap
         last_sent_index = int(total_sents * end_pct / 100) - 1
         
-        # if the last index is one less than the actual last index,
-        # push it up to the end (to account for the behavior of
-        # last_sent_index)
+        # if the last index is one less than the actual last index, push it up to the
+        # end (to account for the behavior of last_sent_index)
         if last_sent_index == last_index - 1:
              last_sent_index = last_index
              
@@ -136,12 +136,13 @@ class Treebank:
         
         # if our last index is smaller than our first, we need to take 2 slices
         if last_sent_index < first_sent_index:
-            # get sentences from first index to end, then from beginning to second index
-            sents = tb_sents[first_sent_index:len(tb_sents)] + tb_sents[0:last_sent_index+1]
+            # get sentences from first index to end, then from beginning to second
+            # index
+            sents = tb_sents[first_sent_index:len(tb_sents)] + \
+                tb_sents[0:last_sent_index+1]
             
         # otherwise, we perform a simple range slice
         else:
             sents = tb_sents[first_sent_index:last_sent_index+1]
             
-        return sents
-        
+        return sents        

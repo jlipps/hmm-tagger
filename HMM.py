@@ -9,6 +9,8 @@ import re # for regex
 class HMM:
     "A class for building Hidden Markov Models of tagged word data"
     
+    ######### CLASS VARIABLES #########
+    
     # store a small list of punctuation to help with training P(Ci+1|Ci)
     punct_list = ["''", '``', ',']
     
@@ -30,6 +32,7 @@ class HMM:
         
         self.start_tag = start_tag
         self.untagged_sents = untagged_sents
+        self.num_untagged_sents = len(untagged_sents)
         self.all_pos_tags = pos_tags
         self.words_given_pos = words_given_pos
         self.words_given_pos_upper = words_given_pos_upper
@@ -49,9 +52,8 @@ class HMM:
         start_time = time.time() # mark the start time for this process
         tagged_sents = [] # array to hold tagged sentences
         complete = 0 # how many sentences we have tagged
-        total = len(self.untagged_sents) # total sentences to tag
         
-        # initialize variables to track for statistics
+        # initialize variables to track for tagging stats
         total_prob_time = 0 # time spent looking up probabilities
         total_other_time = 0 # time spent doing other things
         total_guess_count = 0 # words we used the guesser to guess POS for
@@ -61,20 +63,24 @@ class HMM:
         # tag each sentence and track statistics
         for sent in self.untagged_sents:
             total_word_count += len(sent)
-            (tagged_sent, prob_time, other_time, guess_count, unknown_count) = self.tag_sent(sent)
+            (tagged_sent, prob_time, other_time, guess_count, unknown_count) = \
+                self.tag_sent(sent)
             total_prob_time += prob_time
             total_other_time += other_time
             total_guess_count += guess_count
             total_unknown_count += unknown_count
-            tagged_sents.append(tagged_sent) # tag a sentence, add to array
-            complete += 1 # increment our completed counter
-            progress_bar(complete,total,time.time() - start_time) # show nice progress bar
+            tagged_sents.append(tagged_sent) # append tagged sentence to array
+            complete += 1 # increment our completed counter for progress bar
+            # show nice progress bar
+            progress_bar(complete,self.num_untagged_sents,time.time() - start_time)
             
         # print nice things to the user
         msg("\n")
         msg("Time spent looking up probabilities: %0.2fs\n" % total_prob_time)
-        msg("Total unseen words: %d (%0.2f%% of total)\n" % (total_unknown_count, total_unknown_count / total_word_count * 100))
-        msg("Total words guessed: %d (%0.2f%% of unseen)\n" % (total_guess_count, total_guess_count / total_unknown_count * 100))
+        msg("Total unseen words: %d (%0.2f%% of total)\n" % (total_unknown_count, \
+            total_unknown_count / total_word_count * 100))
+        msg("Total words guessed: %d (%0.2f%% of unseen)\n" % (total_guess_count, \
+            total_guess_count / total_unknown_count * 100))
         
         
         return tagged_sents
@@ -98,7 +104,7 @@ class HMM:
         # reusable looping list: number of words in our sentence
         words_range = range(len(words))
         
-        # reusable list: number of possible POS tags
+        # reusable looping list: number of possible POS tags
         pos_range = range(len(self.all_pos_tags))
         
         # initialize i x j matrix to hold scores
@@ -110,10 +116,10 @@ class HMM:
         # initialize array of POS tags for this sentence
         pos_tags = ['' for j in words_range]
         
-        # initialize array of POS tags for this sentence
+        # initialize array of POS tags for words in sentence
         pos_tag_indices = [None for j in words_range]
         
-        # initialize array of guess states for this sentence
+        # initialize array of guess states for words in sentence
         guessed_pos = [None for j in words_range]
         
         # give P(Wi|Ck) trained with lowercase a shorthand name
@@ -139,7 +145,7 @@ class HMM:
             
             # loop through possible POS tags
             for i in pos_range:
-                tag_i = self.all_pos_tags[i] # POS tag for this index
+                tag_i = self.all_pos_tags[i] # POS tag for this POS index
                 
                 # if this is the first word, perform initial calculation...
                 if j==0:
@@ -162,92 +168,138 @@ class HMM:
                     
                 # if we're not looking at the first word...
                 else:
-
+                    start_prob_time = time.time() # start our prob lookup timer
                     
-                    # look only at those values of scores[x][j-1] (i.e., the score corresponding 
-                    # to the likelihood that word[j-1] is pos[x]) that are the highest, 
-                    # since we know we are going to multiply the new calculation with that.
-                    # [scores[n][j-1] for n in pos_range] = the array of scores for word[j-1]
-                    start_prob_time = time.time()
+                    # initialize an array corresponding to all the POS tags with 1
+                    # in each slot. This will hold the probability that POS i is
+                    # what it is given that it may have followed any other POS
                     scores_pp2p1 = [-1 for m in pos_range]
+                    
+                    # we don't actually need to lookup this conditional probability
+                    # for every POS, since we know which POS for words[j-1] have the
+                    # highest score so far. Thus we only look at those POS in 
+                    # last_max_indices, which stores the POS indices of the POS that
+                    # scored highest for word[j-1]
                     for k in last_max_indices:
                         scores_pp2p1[k] = cpp2p1(tag_i, self.all_pos_tags[k])
+                        
+                    # now we want to find the highest P(Ci|Ck) score
                     max_pp2p1_score = max(scores_pp2p1)
+                    
+                    # also, get the POS index (k from Ck) corresponding to it
                     max_k = scores_pp2p1.index(max_pp2p1_score)
-                    if is_upper:# and i==self.all_pos_tags.index(self.default_tag_upper) and word_j is not "I" and word_j not in ['A','An','The','That']:
+                    
+                    # now we find P(Wj|Ci)
+                    if is_upper:
+                        # if Wj is uppercase, look in the uppercase freq table
                         cpwp_ji = cpwpu(word_j, tag_i)
                     else:
-                        if i==self.all_pos_tags.index(self.guesser.tags.default_upper):
+                        # if Wj is lowercase, we know first of all that it can't be
+                        # a proper noun, so remove these from the running
+                        if tag_i in [self.guesser.tags.proper_noun, \
+                            self.guesser.tags.pl_proper_noun]:
                             cpwp_ji = 0
+                            
+                        # otherwise, lookup the probability from the lowercase
+                        # freq table
                         else:
                             cpwp_ji = cpwp(word_j, tag_i)
+                            
+                    # calculate the score for this word and possible POS as (a) the
+                    # best score from the path so far, (b) the best possible score
+                    # for the POS under consideration, and (c) P(Wj|Ci)
                     scores[i][j] = scores[max_k][j-1] * max_pp2p1_score * cpwp_ji
-                    if words[j-1] in self.punct_list:
-                        scores_without_word_prob[i] = 0
-                    else:
-                        scores_without_word_prob[i] = scores[max_k][j-1] * max_pp2p1_score
+
+                    # keep track of the score for this POS without taking into 
+                    # account P(Wj|Ci), so if word_j is an untrained word, we can
+                    # use bare POS frequencies to help
+                    scores_without_word_prob[i] = scores[max_k][j-1] * \
+                        max_pp2p1_score
+                    
+                    # assert that the path to this word/POS combo came through the
+                    # POS which gave us the highest score in our calculation,
+                    # so we can recover the best POS for each word at the end
                     backpointer[i][j] = max_k
+                    
                     prob_time += time.time() - start_prob_time
             # end: for i in pos_range
             
-            
+            did_guess = False
             # take care that not all scores for this word are 0
             if self._smoothing_needed(scores, j_value=j):
+                # if all the scores are zero, guess that we've never seen this word
+                # in training
                 unknown_count += 1
+                
+                # try to guess a tag for this word based on its form and the bare
+                # POS scores (i.e., guess based on form and then based on the
+                # previous POS)
                 guess_tag = self.guesser.guess(word_j, scores_without_word_prob)
+                
+                # if we didn't come up with a guess, make sure our smoother doesn't
+                # weight any POS over any other
                 if guess_tag == None:
                     guess_index=False
+                    
+                # otherwise, tell our smoother that we have a guess so that it
+                # weights the guessed POS highest
                 else:
+                    # determine the index of the guessed POS tag
                     guess_index = self.all_pos_tags.index(guess_tag)
-                    guess_count += 1
-                (scores, did_guess) = self._smooth_values(scores, j_value=j, guess_index=guess_index)
-            else:
-                did_guess = False
+                    did_guess = True
+                    
+                # get a smoothed column of scores for scores[j]
+                scores = self._smooth_values(scores, j_value=j, \
+                    guess_index=guess_index)
+
+            # record whether or not we guessed the POS for this word
             guessed_pos[j] = did_guess
-            # if did_guess:
-            #     print "Had to guess for %s, guessed %s" % (word_j, guess_tag)
             
-            # get smoothed scores for this word
+            # turn the score column into a 1-dimensional array so we can more easily
+            # find the best POS for this word
             scores_for_this_word = [scores[n][j] for n in pos_range]
  
+            # get the POS indices which performed best for this word to pass on to
+            # the algorithm for the next word, so it can only compute scores for
+            # realistically likely POS
             last_max_indices = indices_of_max(scores_for_this_word)
         
         # end: for j in words_range
         
+        # recover the POS tag indices for words in the sentence that led to the best
+        # final scores
         for j in reversed(words_range):
+            # get the column representing scores for each POS possible for words[j]
             col = [scores[i][j] for i in pos_range]
+            
+            # our last POS is whichever had the highest score in the last column
             if j==len(words_range)-1:
                 pos_tag_indices[j] = col.index(max(col))
+                
+            # otherwise the POS is whichever the backpointer pointed to from the
+            # next word
             else:
                 pos_tag_indices[j] = backpointer[pos_tag_indices[j+1]][j+1]
+                
+        # get the actual tags for the indices recovered
         pos_tags = [self.all_pos_tags[index] for index in pos_tag_indices]
         
-        # clean up obvious errors
+        # clean up obvious word orders by POS
         pos_tags = self.guesser.fix_tags(guessed_pos, pos_tags)
         
         # associate POS tags with words
         tagged_sent = [(words[j], pos_tags[j]) for j in words_range]
         
+        # calculate time stats
         end_time = time.time()
         other_time = end_time - start_time - prob_time
         
+        # return a bundle of tag data and other stats
         return (tagged_sent, prob_time, other_time, guess_count, unknown_count)
         
     
     
     ######### `PRIVATE' FUNCTIONS #########
-    
-    def _compute_score(self, path_score, cpwp, cpp2p1):
-        pass
-        
-    def _smooth2(self, array, guess_index=-1):
-        if max(array)==0:
-            if guess_index > -1:
-                array[guess_index] = 1
-            else:
-                for i in range(len(array)):
-                    array[i] = 1/len(array)
-        return array
         
     def _cp_of_word_given_pos(self, word, pos):
         """
@@ -259,11 +311,6 @@ class HMM:
         
         # use the Conditional Frequency Distribution created by the trainer
         return self.words_given_pos[pos].freq(word)
-        # try:
-        #     cp = self.words_given_pos[pos][word]
-        # except KeyError:
-        #     cp = 0.0
-        # return cp
         
     def _cp_of_upper_word_given_pos(self, word, pos):
         """
@@ -275,11 +322,6 @@ class HMM:
 
         # use the Conditional Frequency Distribution created by the trainer
         return self.words_given_pos_upper[pos].freq(word)
-        # try:
-        #     cp = self.words_given_pos[pos][word]
-        # except KeyError:
-        #     cp = 0.0
-        # return cp
         
     def _cp_of_pos2_given_pos1(self, pos2, pos1):
         """
@@ -292,13 +334,15 @@ class HMM:
         
         # use the Conditional Frequency Distribution created by the trainer
         return self.pos2_given_pos1[pos1].freq(pos2)
-        # try:
-        #     cp = self.pos2_given_pos1[pos1][pos2]
-        # except KeyError:
-        #     cp = 0.0
-        # return cp
         
     def _smoothing_needed(self, matrix, j_value):
+        """
+        Determine whether smoothing is needed for a column of a matrix
+        
+        :param matrix: the list of lists to examine
+        :param j_value: the index of the column to examine for smoothing, i.e.,
+            matrix[j]
+        """
         return max([matrix[i][j_value] for i in range(len(matrix))]) == 0
         
     def _smooth_values(self, matrix, j_value=0, guess_index=-1):
@@ -314,23 +358,25 @@ class HMM:
         
         # fill an array with values from the column
         value_array = [matrix[i][j_value] for i in row_range]
-        did_guess = False
         
         # assume we have all zeroes
-        # if we want to prefer one row, give it a value of .75
+        # if we want to prefer one row, give it a certain value 0 - 1
         if guess_index > -1:
             guess_value = 0.75
+            # give everything else the remaining probability distributed evenly
             non_guess_value = (1 - guess_value) / len(matrix)
             for i in row_range:
+                # give our preferred row the weighted value
                 if i==guess_index:
                     matrix[guess_index][j_value] = guess_value
+                    
+                # give every other row the rest of the probability distribution
                 else:
                     matrix[guess_index][j_value] = non_guess_value
-            did_guess = True
             
-        # otherwise, split the value of 1 over all rows
+        # otherwise, simply split the probability value of 1 evenly over all rows
         else:
             for i in row_range:
                 matrix[i][j_value] = 1 / len(matrix)
 
-        return (matrix, did_guess)
+        return matrix
