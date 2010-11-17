@@ -14,8 +14,8 @@ class HMM:
     # store a small list of punctuation to help with training P(Ci+1|Ci)
     punct_list = ["''", '``', ',']
     
-    def __init__(self, untagged_sents, pos_tags, words_given_pos, words_given_pos_upper, \
-        pos2_given_pos1, start_tag):
+    def __init__(self, untagged_sents, pos_tags, words_given_pos, \
+        words_given_pos_upper, pos2_given_pos1, start_tag):
         """
         Construct a HMM object
         

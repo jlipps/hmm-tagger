@@ -10,7 +10,7 @@ import time # for timing various processes
 
 class Tagger:
     """
-    A class for POS-tagging text and evaulating the result
+    A class for POS-tagging text and evaluating the result
     """
     
     ######### CLASS VARIABLES #########

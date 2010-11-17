@@ -67,4 +67,3 @@ def msg(text):
     """
     
     sys.stderr.write(text)
-        

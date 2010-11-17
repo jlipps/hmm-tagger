@@ -19,13 +19,14 @@ class Guesser:
         'under', 'before', 'until', 'outside', 'over', 'alongside', 'unless', 
         'around', 'that', 'atop', 'after', 'upon', 'but', 'next', 'although', 
         'despite', 'during', 'along', 'with', 'than', 'on', 'about', 'off', 'like', 
-        'unlike', 'whether', 'of', 'up', 'against', 'across', 'while', 'without', 'so', 
-        'though', 'amid', 'toward', 'out', 'once']
+        'unlike', 'whether', 'of', 'up', 'against', 'across', 'while', 'without',
+        'so', 'though', 'amid', 'toward', 'out', 'once']
         
     wdt_list = ['what','whatever','which','that']
     
-    punct_list = {'``':['`','``'], "''":["'",'"'], '(':['(','{','['], ')':[')','}',']'], 
-        ',':[','], '--':['--'], '.':['.','!','?'],':':[':',';','...']}
+    punct_list = {'``':['`','``'], "''":["'",'"'], '(':['(','{','['],
+        ')':[')','}',']'],',':[','], '--':['--'],
+        '.':['.','!','?'],':':[':',';','...']}
     
     
     
@@ -126,7 +127,8 @@ class Guesser:
                 if max(scores_without_word_prob) > 0:
                     
                     # initially, guess the tag which corresponds to highest POS prob
-                    guess_tag = self.pos_tags[scores_without_word_prob.index(max(scores_without_word_prob))]
+                    guess_tag = self.pos_tags[scores_without_word_prob.index(\
+                        max(scores_without_word_prob))]
                     
                     # if the result of such guessing is proper noun
                     if guess_tag == t.proper_noun:
@@ -190,7 +192,7 @@ class Guesser:
                             # change tag to adjective
                             pos_tags[j] = t.adj
                             
-                        # if prev tag was guessed and this tag is prep and next tag is ,
+                        # if prev tag was guessed and this tag is P and next tag is ,
                         elif guessed_pos[j-1] and pos_tags[j]==t.prep and \
                             pos_tags[j+1]==',':
                             
