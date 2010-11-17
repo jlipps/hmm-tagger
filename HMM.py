@@ -1,33 +1,41 @@
+######### HMM.py #########
+
 from __future__ import division # for floating-point division
-from Helper import * # progress_bar(), indices_of_max(), msg()
-from Guesser import Guesser
+from Helper import * # for progress_bar(), indices_of_max(), msg()
+from Guesser import Guesser # for word guesser
 import time # for timing our tagging process
 import re # for regex
 
 class HMM:
     "A class for building Hidden Markov Models of tagged word data"
+    
+    # store a small list of punctuation to help with training P(Ci+1|Ci)
     punct_list = ["''", '``', ',']
     
-    def __init__(self, untagged_sents, pos_tags, words_given_pos, words_given_pos_upper, pos2_given_pos1, default_tag, default_tag_upper, start_tag):
+    def __init__(self, untagged_sents, pos_tags, words_given_pos, words_given_pos_upper, \
+        pos2_given_pos1, start_tag):
         """
         Construct a HMM object
         
         :param untagged_sents: list of untagged sentences for tagging
         :param pos_tags: list of possible POS tags
-        :param words_given_pos: nltk.ConditionalFreqDist for P(Wi|Ck)
+        :param words_given_pos: nltk.ConditionalFreqDist for P(Wi|Ck) with all words
+            converted to lowercase
+        :param words_given_pos_upper: nltk.ConditionalFreqDist for P(Wi|Ck) with
+            words left in original capitalization
         :param pos2_given_pos1: nltk.ConditionalFreqDist for P(Ci+1|Ci)
         :param default_tag: POS tag to guess for words
         :param start_tag: start tag used to mark sentence beginning
         """
         
-        self.default_tag = default_tag
-        self.default_tag_upper = default_tag_upper
         self.start_tag = start_tag
         self.untagged_sents = untagged_sents
         self.all_pos_tags = pos_tags
         self.words_given_pos = words_given_pos
         self.words_given_pos_upper = words_given_pos_upper
         self.pos2_given_pos1 = pos2_given_pos1
+        
+        # initialize one guesser object to use for the whole test
         self.guesser = Guesser(pos_tags, words_given_pos)
     
     ######### `PUBLIC' FUNCTIONS #########
@@ -42,12 +50,15 @@ class HMM:
         tagged_sents = [] # array to hold tagged sentences
         complete = 0 # how many sentences we have tagged
         total = len(self.untagged_sents) # total sentences to tag
-        total_prob_time = 0
-        total_other_time = 0
-        total_guess_count = 0
-        total_word_count = 0
-        total_unknown_count = 0
         
+        # initialize variables to track for statistics
+        total_prob_time = 0 # time spent looking up probabilities
+        total_other_time = 0 # time spent doing other things
+        total_guess_count = 0 # words we used the guesser to guess POS for
+        total_word_count = 0 # num words tagged
+        total_unknown_count = 0 # num words with no P(Wi|Ci)
+        
+        # tag each sentence and track statistics
         for sent in self.untagged_sents:
             total_word_count += len(sent)
             (tagged_sent, prob_time, other_time, guess_count, unknown_count) = self.tag_sent(sent)
@@ -58,9 +69,10 @@ class HMM:
             tagged_sents.append(tagged_sent) # tag a sentence, add to array
             complete += 1 # increment our completed counter
             progress_bar(complete,total,time.time() - start_time) # show nice progress bar
+            
+        # print nice things to the user
         msg("\n")
         msg("Time spent looking up probabilities: %0.2fs\n" % total_prob_time)
-        # msg("Total other time: %0.2f\n" % total_other_time)
         msg("Total unseen words: %d (%0.2f%% of total)\n" % (total_unknown_count, total_unknown_count / total_word_count * 100))
         msg("Total words guessed: %d (%0.2f%% of unseen)\n" % (total_guess_count, total_guess_count / total_unknown_count * 100))
         
@@ -74,39 +86,81 @@ class HMM:
         :param words: a list of untagged words
         """
         
+        # initialize stats tracking variables
         prob_time = 0
         other_time = 0
         start_time = time.time()
         guess_count = 0
         unknown_count = 0
-        words_range = range(len(words)) # reusable list: number of words in our sentence
-        pos_range = range(len(self.all_pos_tags)) # reusable list: number of possible POS tags
-        scores = [[None for j in words_range] for i in pos_range] # initialize i x j matrix
-        backpointer = [[None for j in words_range] for i in pos_range] # initialize i x j matrix
-        pos_tags = ['' for j in words_range] # initialize array of POS tags for this sentence
-        pos_tag_indices = [None for j in words_range] # initialize array of POS tags for this sentence
-        guessed_pos = [None for j in words_range] # initialize array of POS tags for this sentence
         
-        cpwp = self._cp_of_word_given_pos # give helper function a shorthand name
-        cpwpu = self._cp_of_upper_word_given_pos # give helper function a shorthand name
-        cpp2p1 = self._cp_of_pos2_given_pos1 # give helper function a shorthand name
+        # initialize arrays used for algorithm
+        
+        # reusable looping list: number of words in our sentence
+        words_range = range(len(words))
+        
+        # reusable list: number of possible POS tags
+        pos_range = range(len(self.all_pos_tags))
+        
+        # initialize i x j matrix to hold scores
+        scores = [[None for j in words_range] for i in pos_range]
+        
+        # initialize i x j matrix to hold backpointers
+        backpointer = [[None for j in words_range] for i in pos_range]
+        
+        # initialize array of POS tags for this sentence
+        pos_tags = ['' for j in words_range]
+        
+        # initialize array of POS tags for this sentence
+        pos_tag_indices = [None for j in words_range]
+        
+        # initialize array of guess states for this sentence
+        guessed_pos = [None for j in words_range]
+        
+        # give P(Wi|Ck) trained with lowercase a shorthand name
+        cpwp = self._cp_of_word_given_pos 
+        
+        # give P(Wi|Ck) trained with normal capitalization a shorthand name
+        cpwpu = self._cp_of_upper_word_given_pos 
+        
+        # give P(Ci+1|Ci)   a shorthand name
+        cpp2p1 = self._cp_of_pos2_given_pos1
         
         # loop through words
         for j in words_range:
-            word_j = words[j]
+            word_j = words[j] # store current word in a local variable
+            
+            # determine whether word begins with a capital letter
             is_upper = re.search(r'[A-Z]', word_j[0]) is not None
+            
+            # initialize an array to hold the scores for this word not taking into
+            # account the word probability, i.e., including only the path and
+            # the bare POS probability
             scores_without_word_prob = [0 for i in pos_range]
+            
             # loop through possible POS tags
-            # posi_given_posks = [0 for i in pos_range]
-            # wordj_given_posis = [0 for i in pos_range]                
             for i in pos_range:
-                tag_i = self.all_pos_tags[i]
+                tag_i = self.all_pos_tags[i] # POS tag for this index
+                
                 # if this is the first word, perform initial calculation...
                 if j==0:
+                    # find P(Wj|Ci) using lowercase since in the first word,
+                    # capitalization is not helpful information
                     cpwp_ji = cpwp(word_j.lower(), tag_i)
-                    scores[i][j] = cpp2p1(tag_i, self.start_tag) * cpwp_ji
-                    scores_without_word_prob[i] = cpp2p1(tag_i, self.start_tag)
+                    
+                    # find P(Ci|'^')
+                    cp_istart = cpp2p1(tag_i, self.start_tag)
+                    
+                    # calculate score using P(Ci|'^') and P(Wj|Ci)
+                    scores[i][j] = cp_istart * cpwp_ji
+                    
+                    # also find bare POS probability, in this case the same as
+                    # P(Ci|'^')
+                    scores_without_word_prob[i] = cp_istart
+                    
+                    # initialize backpointer for this word to 0
                     backpointer[i][j] = 0
+                    
+                # if we're not looking at the first word...
                 else:
 
                     
@@ -123,7 +177,7 @@ class HMM:
                     if is_upper:# and i==self.all_pos_tags.index(self.default_tag_upper) and word_j is not "I" and word_j not in ['A','An','The','That']:
                         cpwp_ji = cpwpu(word_j, tag_i)
                     else:
-                        if i==self.all_pos_tags.index(self.default_tag_upper):
+                        if i==self.all_pos_tags.index(self.guesser.tags.default_upper):
                             cpwp_ji = 0
                         else:
                             cpwp_ji = cpwp(word_j, tag_i)

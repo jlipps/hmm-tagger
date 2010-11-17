@@ -1,7 +1,9 @@
+######### Treebank.py #########
+
 from __future__ import division # use float division
 import nltk # import the Natural Language Toolkit for parsing the Penn Treebank
 from Helper import msg # for logging
-from nltk.corpus.reader import TaggedCorpusReader
+from nltk.corpus.reader import TaggedCorpusReader # use NLTK's corpus reading tools
 
 class Treebank:
     "A class for parsing a tagged corpus for training and testing"
