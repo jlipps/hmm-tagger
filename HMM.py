@@ -122,14 +122,17 @@ class HMM:
         # initialize array of guess states for words in sentence
         guessed_pos = [None for j in words_range]
         
+        # initialize count of words we guessed on for reporting
+        guess_count = 0
+        
         # give P(Wi|Ck) trained with lowercase a shorthand name
-        cpwp = self._cp_of_word_given_pos 
+        cpwp = lambda word,pos: self.words_given_pos[pos].freq(word)
         
         # give P(Wi|Ck) trained with normal capitalization a shorthand name
-        cpwpu = self._cp_of_upper_word_given_pos 
+        cpwpu = lambda word,pos: self.words_given_pos_upper[pos].freq(word)
         
         # give P(Ci+1|Ci)   a shorthand name
-        cpp2p1 = self._cp_of_pos2_given_pos1
+        cpp2p1 = lambda pos2,pos1: self.pos2_given_pos1[pos1].freq(pos2)
         
         # loop through words
         for j in words_range:
@@ -247,6 +250,7 @@ class HMM:
                     # determine the index of the guessed POS tag
                     guess_index = self.all_pos_tags.index(guess_tag)
                     did_guess = True
+                    guess_count += 1
                     
                 # get a smoothed column of scores for scores[j]
                 scores = self._smooth_values(scores, j_value=j, \
@@ -301,40 +305,6 @@ class HMM:
     
     ######### `PRIVATE' FUNCTIONS #########
         
-    def _cp_of_word_given_pos(self, word, pos):
-        """
-        Determine the conditional probability of a word given a POS
-        
-        :param word: string
-        :param pos: string
-        """
-        
-        # use the Conditional Frequency Distribution created by the trainer
-        return self.words_given_pos[pos].freq(word)
-        
-    def _cp_of_upper_word_given_pos(self, word, pos):
-        """
-        Determine the conditional probability of a word given a POS
-
-        :param word: string
-        :param pos: string
-        """
-
-        # use the Conditional Frequency Distribution created by the trainer
-        return self.words_given_pos_upper[pos].freq(word)
-        
-    def _cp_of_pos2_given_pos1(self, pos2, pos1):
-        """
-        Determine the conditional probability of one POS given another.
-        This is, in other words, the probability that POS2 follows POS1.
-        
-        :param pos2: string
-        :param pos1: string
-        """
-        
-        # use the Conditional Frequency Distribution created by the trainer
-        return self.pos2_given_pos1[pos1].freq(pos2)
-        
     def _smoothing_needed(self, matrix, j_value):
         """
         Determine whether smoothing is needed for a column of a matrix
@@ -376,6 +346,7 @@ class HMM:
             
         # otherwise, simply split the probability value of 1 evenly over all rows
         else:
+            msg("Smoothed!\n")
             for i in row_range:
                 matrix[i][j_value] = 1 / len(matrix)
 
