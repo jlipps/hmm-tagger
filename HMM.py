@@ -288,9 +288,6 @@ class HMM:
         # get the actual tags for the indices recovered
         pos_tags = [self.all_pos_tags[index] for index in pos_tag_indices]
         
-        # clean up obvious word orders by POS
-        pos_tags = self.guesser.fix_tags(guessed_pos, pos_tags)
-        
         # associate POS tags with words
         tagged_sent = [(words[j], pos_tags[j]) for j in words_range]
         
@@ -346,7 +343,6 @@ class HMM:
             
         # otherwise, simply split the probability value of 1 evenly over all rows
         else:
-            msg("Smoothed!\n")
             for i in row_range:
                 matrix[i][j_value] = 1 / len(matrix)
 

@@ -1,4 +1,0 @@
-as printed: 92.41%
-without guesser + pos info: 80.02%
-with guesser, without pos info: 88.09%
-with pos info, without guesser:
