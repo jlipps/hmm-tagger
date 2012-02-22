@@ -1,10 +1,2 @@
-HMM.pyc
-Tagger.pyc
-Treebank.pyc
-Helper.pyc
-Logger.pyc
-Guesser.pyc
-PennTags.pyc
-TreebankCleaner.pyc
-TreebankReader.pyc
+*.pyc
 treebank3_sect2.txt_cleaned
